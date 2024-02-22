@@ -2,9 +2,5 @@
 
 int main()
 {
-	while (1)
-	{
-		NetworkInit();
-		NetworkIO();
-	}
+	NetworkIO();
 }

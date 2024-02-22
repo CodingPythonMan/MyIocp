@@ -8,3 +8,4 @@ void NetworkInit();
 void NetworkIO();
 
 unsigned int WINAPI AcceptThread(LPVOID lpParam);
+unsigned int WINAPI WorkerThread(LPVOID lpParam);
