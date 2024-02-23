@@ -10,4 +10,11 @@ struct Session
 	SOCKET sock;
 	RingBuffer sendQ;
 	RingBuffer recvQ;
+
+	Session(SOCKET clientSock)
+	{
+		memset(&recvOverlapped, 0, sizeof(recvOverlapped));
+		memset(&sendOverlapped, 0, sizeof(sendOverlapped));
+		sock = clientSock;
+	}
 };

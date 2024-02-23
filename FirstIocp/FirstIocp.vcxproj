@@ -129,11 +129,13 @@
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Network.cpp" />
+    <ClCompile Include="Packet.cpp" />
     <ClCompile Include="Parser.cpp" />
     <ClCompile Include="RingBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Network.h" />
+    <ClInclude Include="Packet.h" />
     <ClInclude Include="Parser.h" />
     <ClInclude Include="RingBuffer.h" />
     <ClInclude Include="Session.h" />

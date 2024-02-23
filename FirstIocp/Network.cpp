@@ -1,10 +1,10 @@
 #include "Network.h"
-#include <list>
 #include <process.h>
 #include "Parser.h"
+#include <iostream>
+#include "Packet.h"
 
 SOCKET gListenSock;
-std::list<Session*> gSessionList;
 
 HANDLE* Threads;
 int WorkerThreadCount;
@@ -96,18 +96,16 @@ unsigned int WINAPI AcceptThread(LPVOID lpParam)
 		wprintf(L"[TCP Server] Client Access : IP Address=%s, Port=%d\n",
 			IP, ntohs(clientAddr.sin_port));
 
-		// 소켓과 입출력 완료 포트 연결
-		CreateIoCompletionPort((HANDLE)clientSock, hcp, clientSock, 0);
-
 		// 소켓 정보 구조체 할당
-		Session* ptr = new Session;
+		Session* ptr = new Session(clientSock);
 
-		memset(&ptr->recvOverlapped, 0, sizeof(ptr->recvOverlapped));
-		memset(&ptr->sendOverlapped, 0, sizeof(ptr->sendOverlapped));
-		ptr->sock = clientSock;
+		// 소켓과 입출력 완료 포트 연결
+		CreateIoCompletionPort((HANDLE)clientSock, hcp, (ULONG_PTR)ptr, 0);
 
 		// 비동기 입출력 시작
 		WSABUF wsabuf;
+		wsabuf.buf = ptr->recvQ.GetRearBufferPtr();
+		wsabuf.len = ptr->recvQ.GetFreeSize();
 		flags = 0;
 		retval = WSARecv(clientSock, &wsabuf, 1, nullptr, &flags, &ptr->recvOverlapped, nullptr);
 
@@ -129,36 +127,71 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 {
 	int retval;
 	HANDLE hcp = (HANDLE)lpParam;
-
 	WCHAR IP[8];
+	DWORD flags;
 
 	while (1)
 	{
 		// 비동기 입출력 완료 기다리기
 		DWORD Transferred;
-		SOCKET clientSock;
-		Session* ptr;
+		Session* session = NULL;
+		OVERLAPPED* overlapped;
 		retval = GetQueuedCompletionStatus(hcp, &Transferred, 
-			&clientSock, (LPOVERLAPPED*)&ptr, INFINITE);
+			(PULONG_PTR)&session, &overlapped, INFINITE);
 
 		// 클라이언트 정보 얻기
 		SOCKADDR_IN clientAddr;
 		int addrLen = sizeof(clientAddr);
-		getpeername(ptr->sock, (SOCKADDR*)&clientAddr, &addrLen);
+		getpeername(session->sock, (SOCKADDR*)&clientAddr, &addrLen);
 
 		// 비동기 입출력 결과 확인
 		if (retval == 0 || Transferred == 0)
 		{
-			if (retval == 0)
-			{
-				DWORD temp1, temp2;
-			}
-			closesocket(ptr->sock);
-			InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
+			closesocket(session->sock);
+			InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 8);
 			wprintf(L"[TCP Server] Client Terminate : IP Address=%s, Port=%d\n",
 				IP, ntohs(clientAddr.sin_port));
-			delete ptr;
+			
+			delete session;
 			continue;
+		}
+
+		if (overlapped == &(session->recvOverlapped))
+		{
+			InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 8);
+			wprintf(L"[TCP/%s:%d] ", IP, ntohs(clientAddr.sin_port));
+
+			Packet packet;
+			session->recvQ.Dequeue(packet.GetBufferPtr(), Transferred);
+			printf("%s\n", packet.GetBufferPtr());
+
+			WSABUF wsabuf;
+			wsabuf.buf = session->recvQ.GetRearBufferPtr();
+			wsabuf.len = session->recvQ.DirectEnqueueSize();
+			flags = 0;
+			retval = WSARecv(session->sock, &wsabuf, 1, nullptr, &flags, &(session->recvOverlapped), nullptr);
+
+			if (retval == SOCKET_ERROR)
+			{
+				if (WSAGetLastError() != ERROR_IO_PENDING)
+				{
+					return -1;
+				}
+				continue;
+			}
+
+			wsabuf.buf = session->recvQ.GetFrontBufferPtr();
+			wsabuf.len = session->recvQ.DirectDequeueSize();
+
+			retval = WSASend(session->sock, &wsabuf, 1, nullptr, flags, &(session->sendOverlapped), nullptr);
+			if (retval == SOCKET_ERROR)
+			{
+				if (WSAGetLastError() != WSA_IO_PENDING)
+				{
+					return 1;
+				}
+				continue;
+			}
 		}
 	}
 

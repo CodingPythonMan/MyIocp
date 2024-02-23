@@ -24,6 +24,9 @@
     <ClCompile Include="Parser.cpp">
       <Filter>Util</Filter>
     </ClCompile>
+    <ClCompile Include="Packet.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Session.h">
@@ -37,6 +40,9 @@
     </ClInclude>
     <ClInclude Include="Parser.h">
       <Filter>Util</Filter>
+    </ClInclude>
+    <ClInclude Include="Packet.h">
+      <Filter>Network</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
