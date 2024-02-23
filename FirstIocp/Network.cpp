@@ -3,11 +3,15 @@
 #include "Parser.h"
 #include <iostream>
 #include "Packet.h"
+#include <unordered_map>
 
 SOCKET gListenSock;
 
-HANDLE* Threads;
-int WorkerThreadCount;
+HANDLE* gThreads;
+int gWorkerThreadCount;
+
+__int64 gUniqueID = 0;
+std::unordered_map<__int64, Session*> gSessionMap;
 
 void NetworkInit()
 {
@@ -28,16 +32,16 @@ void NetworkInit()
 	
 	int ConcurrentThreadCount;
 	parser->LoadFile("GameConfig.ini");
-	parser->GetValueInt("WorkerThreadCount", &WorkerThreadCount);
+	parser->GetValueInt("WorkerThreadCount", &gWorkerThreadCount);
 	parser->GetValueInt("ConcurrentThreadCount", &ConcurrentThreadCount);
 
 	// 스레드 실행.
-	Threads = new HANDLE[WorkerThreadCount];
-	for (int i = 0; i < WorkerThreadCount - 1; i++)
+	gThreads = new HANDLE[gWorkerThreadCount];
+	for (int i = 0; i < gWorkerThreadCount - 1; i++)
 	{
-		Threads[i] = (HANDLE)_beginthreadex(nullptr, 0, WorkerThread, hcp, 0, nullptr);
+		gThreads[i] = (HANDLE)_beginthreadex(nullptr, 0, WorkerThread, hcp, 0, nullptr);
 	}
-	Threads[WorkerThreadCount-1] = (HANDLE)_beginthreadex(nullptr, 0, AcceptThread, hcp, 0, nullptr);
+	gThreads[gWorkerThreadCount-1] = (HANDLE)_beginthreadex(nullptr, 0, AcceptThread, hcp, 0, nullptr);
 
 	// socket()
 	gListenSock = socket(AF_INET, SOCK_STREAM, 0);
@@ -64,8 +68,8 @@ void NetworkIO()
 {
 	NetworkInit();
 
-	WaitForMultipleObjects(WorkerThreadCount, Threads, true, INFINITE);
-	delete[] Threads;
+	WaitForMultipleObjects(gWorkerThreadCount, gThreads, true, INFINITE);
+	delete[] gThreads;
 }
 
 unsigned int WINAPI AcceptThread(LPVOID lpParam)
@@ -77,7 +81,7 @@ unsigned int WINAPI AcceptThread(LPVOID lpParam)
 	SOCKADDR_IN clientAddr;
 	int addrLen;
 	DWORD flags;
-	WCHAR IP[8];
+	WCHAR IP[16];
 
 	HANDLE hcp = (HANDLE)lpParam;
 
@@ -92,12 +96,13 @@ unsigned int WINAPI AcceptThread(LPVOID lpParam)
 			break;
 		}
 
-		InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 8);
+		InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
 		wprintf(L"[TCP Server] Client Access : IP Address=%s, Port=%d\n",
 			IP, ntohs(clientAddr.sin_port));
 
 		// 소켓 정보 구조체 할당
 		Session* ptr = new Session(clientSock);
+		gSessionMap.insert({ gUniqueID++, ptr });
 
 		// 소켓과 입출력 완료 포트 연결
 		CreateIoCompletionPort((HANDLE)clientSock, hcp, (ULONG_PTR)ptr, 0);
@@ -127,8 +132,10 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 {
 	int retval;
 	HANDLE hcp = (HANDLE)lpParam;
-	WCHAR IP[8];
+	WCHAR IP[16];
 	DWORD flags;
+	WSABUF sendWsabuf[2];
+	WSABUF recvWsabuf[2];
 
 	while (1)
 	{
@@ -145,10 +152,23 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 		getpeername(session->sock, (SOCKADDR*)&clientAddr, &addrLen);
 
 		// 비동기 입출력 결과 확인
-		if (retval == 0 || Transferred == 0)
+		// 1. 3개 값 0 확인
+		if (session == 0 && overlapped == 0 && Transferred == 0)
+		{
+			break;
+		}
+
+		if (session == nullptr)
+		{
+			printf("[WorkerThread Error] Session is null!");
+			break;
+		}
+	
+		// 2. Transferred == 0 확인
+		if (Transferred == 0)
 		{
 			closesocket(session->sock);
-			InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 8);
+			InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
 			wprintf(L"[TCP Server] Client Terminate : IP Address=%s, Port=%d\n",
 				IP, ntohs(clientAddr.sin_port));
 			
@@ -156,43 +176,62 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 			continue;
 		}
 
+		// 3. Recv IO 인지 확인
 		if (overlapped == &(session->recvOverlapped))
 		{
-			InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 8);
+			session->recvQ.MoveRear(Transferred);
+
+			// 받았다면, SendQ에 복사
+			InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
 			wprintf(L"[TCP/%s:%d] ", IP, ntohs(clientAddr.sin_port));
 
-			Packet packet;
-			session->recvQ.Dequeue(packet.GetBufferPtr(), Transferred);
-			printf("%s\n", packet.GetBufferPtr());
+			char* message = new char[Transferred + 1];
+			session->recvQ.Dequeue(message, Transferred);
+			message[Transferred] = '\0';
+			printf("%s\n", message);
+			
+			session->sendQ.Enqueue(message, Transferred);
+			delete[] message;
 
-			WSABUF wsabuf;
-			wsabuf.buf = session->recvQ.GetRearBufferPtr();
-			wsabuf.len = session->recvQ.DirectEnqueueSize();
+			// SendQ 에서 해당 부분 설정
+			sendWsabuf[0].buf = session->sendQ.GetFrontBufferPtr();
+			sendWsabuf[0].len = session->sendQ.DirectDequeueSize();
 			flags = 0;
-			retval = WSARecv(session->sock, &wsabuf, 1, nullptr, &flags, &(session->recvOverlapped), nullptr);
 
+			retval = WSASend(session->sock, &sendWsabuf[0], 1, nullptr, flags, &(session->sendOverlapped), nullptr);
 			if (retval == SOCKET_ERROR)
 			{
-				if (WSAGetLastError() != ERROR_IO_PENDING)
+				retval = WSAGetLastError();
+				if (retval != ERROR_IO_PENDING)
 				{
-					return -1;
+					printf("[WSASend Error] Error Code : %d\n", retval);
+					return 1;
 				}
 				continue;
 			}
 
-			wsabuf.buf = session->recvQ.GetFrontBufferPtr();
-			wsabuf.len = session->recvQ.DirectDequeueSize();
+			// Send 성공 했으므로, Recv 해야함.
+			recvWsabuf[0].buf = session->recvQ.GetRearBufferPtr();
+			recvWsabuf[0].len = session->recvQ.DirectEnqueueSize();
+			
+			retval = WSARecv(session->sock, &recvWsabuf[0], 1, nullptr, &flags, &(session->recvOverlapped), nullptr);
 
-			retval = WSASend(session->sock, &wsabuf, 1, nullptr, flags, &(session->sendOverlapped), nullptr);
 			if (retval == SOCKET_ERROR)
 			{
-				if (WSAGetLastError() != WSA_IO_PENDING)
+				retval = WSAGetLastError();
+				if (retval != ERROR_IO_PENDING)
 				{
+					printf("[WSARecv Error] Error Code : %d\n", retval);
 					return 1;
 				}
 				continue;
 			}
 		}
+		
+		// 4. Send IO
+		session->sendQ.MoveFront(Transferred);
+
+		// 현재 재전송까지는 아직 넣지 않음.
 	}
 
 	return 0;
