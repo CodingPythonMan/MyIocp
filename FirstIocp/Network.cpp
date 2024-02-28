@@ -90,6 +90,7 @@ unsigned int WINAPI AcceptThread(LPVOID lpParam)
 		// accept
 		addrLen = sizeof(clientAddr);
 		clientSock = accept(gListenSock, (SOCKADDR*)&clientAddr, &addrLen);
+
 		if (clientSock == INVALID_SOCKET)
 		{
 			printf("[Accept Thread] : Client Sock Invalid Error!\n");
@@ -101,18 +102,18 @@ unsigned int WINAPI AcceptThread(LPVOID lpParam)
 			IP, ntohs(clientAddr.sin_port));
 
 		// 소켓 정보 구조체 할당
-		Session* ptr = new Session(clientSock);
-		gSessionMap.insert({ gUniqueID++, ptr });
+		Session* session = new Session(gUniqueID++, clientSock);
+		gSessionMap.insert({ session->sessionID, session });
 
 		// 소켓과 입출력 완료 포트 연결
-		CreateIoCompletionPort((HANDLE)clientSock, hcp, (ULONG_PTR)ptr, 0);
+		CreateIoCompletionPort((HANDLE)session->sock, hcp, (ULONG_PTR)session, 0);
 
 		// 비동기 입출력 시작
 		WSABUF wsabuf;
-		wsabuf.buf = ptr->recvQ.GetRearBufferPtr();
-		wsabuf.len = ptr->recvQ.GetFreeSize();
+		wsabuf.buf = session->recvQ.GetRearBufferPtr();
+		wsabuf.len = session->recvQ.GetFreeSize();
 		flags = 0;
-		retval = WSARecv(clientSock, &wsabuf, 1, nullptr, &flags, &ptr->recvOverlapped, nullptr);
+		retval = WSARecv(clientSock, &wsabuf, 1, nullptr, &flags, &session->recvOverlapped, nullptr);
 
 		if (retval == SOCKET_ERROR)
 		{
@@ -123,6 +124,7 @@ unsigned int WINAPI AcceptThread(LPVOID lpParam)
 			continue;
 		}
 
+		OnAccept(session->sessionID);
 	}
 
 	return 0;
@@ -133,9 +135,6 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 	int retval;
 	HANDLE hcp = (HANDLE)lpParam;
 	WCHAR IP[16];
-	DWORD flags;
-	WSABUF sendWsabuf[2];
-	WSABUF recvWsabuf[2];
 
 	while (1)
 	{
@@ -179,65 +178,115 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 		// 3. Recv IO 인지 확인
 		if (overlapped == &(session->recvOverlapped))
 		{
+			// 바이트만큼 Rear 변경
 			session->recvQ.MoveRear(Transferred);
 
-			// 받았다면, SendQ에 복사
-			InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
-			wprintf(L"[TCP/%s:%d] ", IP, ntohs(clientAddr.sin_port));
+			// 메시지 저장
+			Packet packet;
+			retval = session->recvQ.Dequeue(packet.GetBufferPtr(), Transferred);
+			packet.MoveWritePos(retval);
 
-			char* message = new char[Transferred + 1];
-			session->recvQ.Dequeue(message, Transferred);
-			message[Transferred] = '\0';
-			printf("%s\n", message);
-			
-			session->sendQ.Enqueue(message, Transferred);
-			delete[] message;
+			// Recv 거는 함수
+			RecvPost(session);
 
-			// SendQ 에서 해당 부분 설정
-			sendWsabuf[0].buf = session->sendQ.GetFrontBufferPtr();
-			sendWsabuf[0].len = session->sendQ.DirectDequeueSize();
-			sendWsabuf[1].buf = session->sendQ.GetStartBufferPtr();
-			sendWsabuf[1].len = session->sendQ.GetUseSize() - sendWsabuf[0].len;
-			
-			flags = 0;
-
-			retval = WSASend(session->sock, &sendWsabuf[0], 2, nullptr, flags, &(session->sendOverlapped), nullptr);
-			if (retval == SOCKET_ERROR)
-			{
-				retval = WSAGetLastError();
-				if (retval != ERROR_IO_PENDING)
-				{
-					printf("[WSASend Error] Error Code : %d\n", retval);
-					return 1;
-				}
-				continue;
-			}
-
-			// Send 성공 했으므로, Recv 해야함.
-			recvWsabuf[0].buf = session->recvQ.GetRearBufferPtr();
-			recvWsabuf[0].len = session->recvQ.DirectEnqueueSize();
-			recvWsabuf[1].buf = session->recvQ.GetStartBufferPtr();
-			recvWsabuf[1].len = session->recvQ.GetFreeSize() - recvWsabuf[0].len;
-			
-			retval = WSARecv(session->sock, &recvWsabuf[0], 2, nullptr, &flags, &(session->recvOverlapped), nullptr);
-
-			if (retval == SOCKET_ERROR)
-			{
-				retval = WSAGetLastError();
-				if (retval != ERROR_IO_PENDING)
-				{
-					printf("[WSARecv Error] Error Code : %d\n", retval);
-					return 1;
-				}
-				continue;
-			}
+			// 메세지 처리하는 함수
+			OnRecv(session, packet);
 		}
 		
 		// 4. Send IO
-		session->sendQ.MoveFront(Transferred);
-
+		if (overlapped == &(session->sendOverlapped))
+		{
+			session->sendQ.MoveFront(Transferred);
+		}
+		
 		// 현재 재전송까지는 아직 넣지 않음.
 	}
 
 	return 0;
+}
+
+void OnAccept(__int64 sessionID)
+{
+	Session* session = gSessionMap[sessionID];
+
+	// 컨텐츠가 없으므로 아직 할 일 없음.
+}
+
+void OnRecv(Session* session, Packet& packet)
+{
+	// 컨텐츠 코드
+	// 클라이언트 정보 얻기
+	SOCKADDR_IN clientAddr;
+	WCHAR IP[16];
+
+	int addrLen = sizeof(clientAddr);
+	getpeername(session->sock, (SOCKADDR*)&clientAddr, &addrLen);
+
+	InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
+	wprintf(L"[TCP/%s:%d] ", IP, ntohs(clientAddr.sin_port));
+
+	char ch = '\0';
+	packet.PutData(&ch, 1);
+	printf("%s\n", packet.GetBufferPtr());
+	packet.MoveWritePos(-1);
+
+	// 다시 재전송
+	// SendPacket
+	SendPacket(session->sessionID, packet);
+}
+
+void RecvPost(Session* session)
+{
+	int retval;
+	DWORD flags = 0;
+	WSABUF recvWsabuf[2];
+
+	// Send 성공 했으므로, Recv 해야함.
+	recvWsabuf[0].buf = session->recvQ.GetRearBufferPtr();
+	recvWsabuf[0].len = session->recvQ.DirectEnqueueSize();
+	recvWsabuf[1].buf = session->recvQ.GetStartBufferPtr();
+	recvWsabuf[1].len = session->recvQ.GetFreeSize() - recvWsabuf[0].len;
+
+	retval = WSARecv(session->sock, &recvWsabuf[0], 2, nullptr, &flags, &(session->recvOverlapped), nullptr);
+
+	if (retval == SOCKET_ERROR)
+	{
+		retval = WSAGetLastError();
+		if (retval != ERROR_IO_PENDING)
+		{
+			printf("[WSARecv Error] Error Code : %d\n", retval);
+		}
+	}
+}
+
+void SendPost(Session* session)
+{
+	int retval;
+	DWORD flags = 0;
+	WSABUF sendWsabuf[2];
+
+	// SendQ 에서 해당 부분 설정
+	sendWsabuf[0].buf = session->sendQ.GetFrontBufferPtr();
+	sendWsabuf[0].len = session->sendQ.DirectDequeueSize();
+	sendWsabuf[1].buf = session->sendQ.GetStartBufferPtr();
+	sendWsabuf[1].len = session->sendQ.GetUseSize() - sendWsabuf[0].len;
+
+	retval = WSASend(session->sock, &sendWsabuf[0], 2, nullptr, flags, &(session->sendOverlapped), nullptr);
+	
+	if (retval == SOCKET_ERROR)
+	{
+		retval = WSAGetLastError();
+		if (retval != ERROR_IO_PENDING)
+		{
+			printf("[WSASend Error] Error Code : %d\n", retval);
+		}
+	}
+}
+
+void SendPacket(__int64 sessionID, Packet& packet)
+{
+	Session* session = gSessionMap[sessionID];
+	session->sendQ.Enqueue(packet.GetBufferPtr(), packet.GetDataSize());
+
+	SendPost(session);
 }

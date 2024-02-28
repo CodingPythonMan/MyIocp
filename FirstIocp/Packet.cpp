@@ -30,38 +30,14 @@ void Packet::Clear(void)
 
 int Packet::MoveWritePos(int size)
 {
-	if (size > 0)
-	{
-		WritePos += size;
-
-		if (WritePos + size > BufferSize)
-		{
-			__debugbreak();
-		}
-	}
-	else
-	{
-		size = 0;
-	}
+	WritePos += size;
 
 	return size;
 }
 
 int Packet::MoveReadPos(int size)
 {
-	if (size > 0)
-	{
-		ReadPos += size;
-
-		if (ReadPos + size > BufferSize)
-		{
-			__debugbreak();
-		}
-	}
-	else
-	{
-		size = 0;
-	}
+	ReadPos += size;
 
 	return size;
 }
