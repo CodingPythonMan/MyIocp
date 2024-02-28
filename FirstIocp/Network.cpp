@@ -196,9 +196,12 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 			// SendQ 에서 해당 부분 설정
 			sendWsabuf[0].buf = session->sendQ.GetFrontBufferPtr();
 			sendWsabuf[0].len = session->sendQ.DirectDequeueSize();
+			sendWsabuf[1].buf = session->sendQ.GetStartBufferPtr();
+			sendWsabuf[1].len = session->sendQ.GetUseSize() - sendWsabuf[0].len;
+			
 			flags = 0;
 
-			retval = WSASend(session->sock, &sendWsabuf[0], 1, nullptr, flags, &(session->sendOverlapped), nullptr);
+			retval = WSASend(session->sock, &sendWsabuf[0], 2, nullptr, flags, &(session->sendOverlapped), nullptr);
 			if (retval == SOCKET_ERROR)
 			{
 				retval = WSAGetLastError();
@@ -213,8 +216,10 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 			// Send 성공 했으므로, Recv 해야함.
 			recvWsabuf[0].buf = session->recvQ.GetRearBufferPtr();
 			recvWsabuf[0].len = session->recvQ.DirectEnqueueSize();
+			recvWsabuf[1].buf = session->recvQ.GetStartBufferPtr();
+			recvWsabuf[1].len = session->recvQ.GetFreeSize() - recvWsabuf[0].len;
 			
-			retval = WSARecv(session->sock, &recvWsabuf[0], 1, nullptr, &flags, &(session->recvOverlapped), nullptr);
+			retval = WSARecv(session->sock, &recvWsabuf[0], 2, nullptr, &flags, &(session->recvOverlapped), nullptr);
 
 			if (retval == SOCKET_ERROR)
 			{
