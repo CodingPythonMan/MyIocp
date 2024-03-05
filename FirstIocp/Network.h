@@ -2,7 +2,7 @@
 #include "Session.h"
 #include "Packet.h"
 
-#define SERVERPORT 9000
+#define SERVERPORT 6000
 
 void NetworkInit();
 
