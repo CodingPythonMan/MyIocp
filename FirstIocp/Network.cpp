@@ -212,11 +212,10 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 		else if (overlapped == &session->sendOverlapped)
 		{
 			session->sendQ.MoveFront(Transferred);
+			session->WSASend = false;
 
-			session->sendPost++;
-			session->sendPostBytes+=Transferred;
-			wprintf(L"Transferred = %d\n", Transferred);
-			wprintf(L"session->sendQ.Front = %d\n", session->sendQ.Front);
+			if (session->sendQ.GetUseSize() > 0)
+				SendPost(session);
 
 			InterlockedDecrement(&session->IOCount);
 		}
@@ -310,6 +309,12 @@ void RecvPost(Session* session)
 
 void SendPost(Session* session)
 {
+	// Send 전 버퍼링
+	if (session->WSASend == true)
+		return;
+
+	session->WSASend = true;
+
 	int retval;
 	DWORD flags = 0;
 	WSABUF sendWsabuf[2];
@@ -335,8 +340,6 @@ void SendPost(Session* session)
 		retval = WSASend(session->sock, sendWsabuf, 1, NULL, flags, &session->sendOverlapped, nullptr);
 	}
 
-	session->sendBytes += UseSize;
-	
 	InterlockedIncrement(&session->IOCount);
 
 	if (retval == SOCKET_ERROR)
@@ -354,9 +357,5 @@ void SendPacket(__int64 sessionID, Packet& packet)
 	Session* session = gSessionMap[sessionID];
 	session->sendQ.Enqueue(packet.GetBufferPtr(), packet.GetDataSize());
 
-	wprintf(L"PacketDataSize = %d\n", packet.GetDataSize());
-	wprintf(L"session->sendQ.Rear = %d\n", session->sendQ.Rear);
-
 	SendPost(session);
-	session->send++;
 }
