@@ -38,14 +38,6 @@ void NetworkInit()
 	parser->GetValueInt("WorkerThreadCount", &gWorkerThreadCount);
 	parser->GetValueInt("ConcurrentThreadCount", &ConcurrentThreadCount);
 
-	// 스레드 실행.
-	gThreads = new HANDLE[gWorkerThreadCount];
-	for (int i = 0; i < gWorkerThreadCount - 1; i++)
-	{
-		gThreads[i] = (HANDLE)_beginthreadex(nullptr, 0, WorkerThread, hcp, 0, nullptr);
-	}
-	gThreads[gWorkerThreadCount-1] = (HANDLE)_beginthreadex(nullptr, 0, AcceptThread, hcp, 0, nullptr);
-
 	// socket()
 	gListenSock = socket(AF_INET, SOCK_STREAM, 0);
 	if (gListenSock == INVALID_SOCKET)
@@ -65,6 +57,14 @@ void NetworkInit()
 	retval = listen(gListenSock, SOMAXCONN);
 	if (retval == SOCKET_ERROR)
 		return;
+
+	// 스레드 실행.
+	gThreads = new HANDLE[gWorkerThreadCount];
+	for (int i = 0; i < gWorkerThreadCount - 1; i++)
+	{
+		gThreads[i] = (HANDLE)_beginthreadex(nullptr, 0, WorkerThread, hcp, 0, nullptr);
+	}
+	gThreads[gWorkerThreadCount - 1] = (HANDLE)_beginthreadex(nullptr, 0, AcceptThread, hcp, 0, nullptr);
 }
 
 void NetworkIO()
@@ -194,13 +194,6 @@ unsigned int WINAPI WorkerThread(LPVOID lpParam)
 			Packet packet(Transferred);
 			retval = session->recvQ.Dequeue(packet.GetBufferPtr(), Transferred);
 			packet.MoveWritePos(retval);
-
-			// 링버퍼가 꽉 찼으니 판단해줄 장소
-			if (session->recvQ.GetFreeSize() <= 0)
-				__debugbreak();
-
-			if (session->sendQ.GetFreeSize() < Transferred)
-				__debugbreak();
 
 			// 메세지 처리하는 함수
 			OnRecv(session, packet);

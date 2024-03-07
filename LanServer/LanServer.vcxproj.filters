@@ -7,6 +7,9 @@
     <Filter Include="Network">
       <UniqueIdentifier>{81b81019-6ecb-4c08-a310-7c98e68d6c63}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Util">
+      <UniqueIdentifier>{148e22bf-ca25-4667-98fe-464dcd04d4b1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -18,12 +21,24 @@
     <ClCompile Include="Packet.cpp">
       <Filter>Network</Filter>
     </ClCompile>
+    <ClCompile Include="Parser.cpp">
+      <Filter>Util</Filter>
+    </ClCompile>
+    <ClCompile Include="GameServer.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LanServer.h">
       <Filter>Network</Filter>
     </ClInclude>
     <ClInclude Include="Packet.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="Parser.h">
+      <Filter>Util</Filter>
+    </ClInclude>
+    <ClInclude Include="GameServer.h">
       <Filter>Network</Filter>
     </ClInclude>
   </ItemGroup>
