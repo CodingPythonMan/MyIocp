@@ -27,6 +27,12 @@
     <ClCompile Include="GameServer.cpp">
       <Filter>Network</Filter>
     </ClCompile>
+    <ClCompile Include="Log.cpp">
+      <Filter>Util</Filter>
+    </ClCompile>
+    <ClCompile Include="RingBuffer.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LanServer.h">
@@ -39,6 +45,15 @@
       <Filter>Util</Filter>
     </ClInclude>
     <ClInclude Include="GameServer.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="Log.h">
+      <Filter>Util</Filter>
+    </ClInclude>
+    <ClInclude Include="Session.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="RingBuffer.h">
       <Filter>Network</Filter>
     </ClInclude>
   </ItemGroup>

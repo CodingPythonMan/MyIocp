@@ -5,7 +5,7 @@ bool GameServer::OnConnectionRequest(WCHAR IP[], int Port)
 	return false;
 }
 
-void GameServer::OnAccept()
+void GameServer::OnAccept(SessionID sessionID)
 {
 }
 

@@ -1,22 +1,14 @@
 #include "Parser.h"
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <string>
 
-Parser::Parser() : Version{ 0 }, ServerID{ 0 }, buffer{ nullptr }
+Parser::Parser() : buffer{ nullptr }
 {
-	Path = nullptr;
-	FileName = nullptr;
 }
 
 Parser::~Parser()
 {
 	free(buffer);
-
-	// 데이터 반환
-	// 그래도 프로세스 끝날 때 해줄 것이기 때문에 굳이 해줄 필요는 없음
-	delete[] Path;
-	delete[] FileName;
 }
 
 Parser* Parser::GetInstance()
@@ -137,6 +129,19 @@ bool Parser::GetValueStr(const char* valueName, char** column)
 			}
 		}
 	}
+
+	return false;
+}
+
+bool Parser::GetValueWStr(const char* valueName, WCHAR** column)
+{
+	char* tempColumn;
+	GetValueStr(valueName, &tempColumn);
+	size_t size = strlen(tempColumn) + 1;
+	*column = new WCHAR[size];
+
+	size_t outSize;
+	mbstowcs_s(&outSize, *column, size, tempColumn, size - 1);
 
 	return false;
 }

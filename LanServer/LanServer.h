@@ -1,7 +1,9 @@
 #pragma once
-#include "Packet.h"
-#include <WS2tcpip.h>
+#include "Session.h"
 #include <process.h>
+#include <unordered_map>
+#include "Packet.h"
+#include "Log.h"
 
 class LanServer
 {
@@ -26,7 +28,7 @@ public:
 	// return true; 시 접속 허용
 	
 	// 접속 완료 후 호출
-	virtual void	OnAccept() = 0;
+	virtual void	OnAccept(SessionID) = 0;
 	// 접속 끊음 후 호출
 	virtual void	OnRelease() = 0;
 	// 패킷 수신 완료
@@ -42,11 +44,18 @@ protected:
 
 	static unsigned int WINAPI	WorkerThread(LPVOID lpParam);
 
-private:
-	SOCKET	listenSock;
-	HANDLE* WorkerThreads;
+	static unsigned int WINAPI	CalTPSThread(LPVOID lpParam);
 
-	int		AcceptTPS;
-	int		RecvMessageTPS;
-	int		SendMessageTPS;
+private:
+	HANDLE* _WorkerThreads;
+	
+	static SOCKET									listenSock;
+	static CRITICAL_SECTION							mapCs;
+	static std::unordered_map<__int64, Session*>	SessionMap;
+	static unsigned __int64							UniqueID;
+
+	// 모니터링용
+	static int		AcceptTPS;
+	static int		RecvMessageTPS;
+	static int		SendMessageTPS;
 };
