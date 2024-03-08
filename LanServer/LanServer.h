@@ -20,19 +20,22 @@ public:
 	void	Stop();
 	int		GetSessionCount();
 
+	void	RecvPost(SessionID sessionID);
+	void	SendPost(SessionID sessionID);
+
 	bool	Disconnect(SessionID sessionID);
-	bool	SendPacket(SessionID sessionID, Packet* packet);
+	bool	SendPacket(SessionID sessionID, Packet& packet);
 
 	virtual bool	OnConnectionRequest(WCHAR IP[], int Port) = 0;
 	// return false; 시 클라이언트 거부
 	// return true; 시 접속 허용
 	
 	// 접속 완료 후 호출
-	virtual void	OnAccept(SessionID) = 0;
+	virtual void	OnAccept(SessionID sessionID) = 0;
 	// 접속 끊음 후 호출
 	virtual void	OnRelease() = 0;
 	// 패킷 수신 완료
-	virtual void	OnRecv() = 0;
+	virtual void	OnRecv(SessionID sessionID, Packet& packet) = 0;
 	virtual void	OnError(int errorCode, WCHAR* text) = 0;
 
 	int		GetAcceptTPS();
@@ -46,16 +49,20 @@ protected:
 
 	static unsigned int WINAPI	CalTPSThread(LPVOID lpParam);
 
-private:
-	HANDLE* _WorkerThreads;
+protected:
+	SOCKET									_listenSock;
+
+	// IOCP
+	HANDLE									_hcp;
+	HANDLE*									_WorkerThreads;
 	
-	static SOCKET									listenSock;
-	static CRITICAL_SECTION							mapCs;
-	static std::unordered_map<__int64, Session*>	SessionMap;
-	static unsigned __int64							UniqueID;
+	// Resource
+	CRITICAL_SECTION						_mapCs;
+	std::unordered_map<__int64, Session*>	_SessionMap;
+	unsigned __int64						_UniqueID;
 
 	// 모니터링용
-	static int		AcceptTPS;
-	static int		RecvMessageTPS;
-	static int		SendMessageTPS;
+	int										_AcceptTPS;
+	int										_RecvMessageTPS;
+	int										_SendMessageTPS;
 };

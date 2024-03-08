@@ -9,7 +9,7 @@ public:
 	virtual bool OnConnectionRequest(WCHAR IP[], int Port) override;
 	virtual void OnAccept(SessionID sessionID) override;
 	virtual void OnRelease() override;
-	virtual void OnRecv() override;
+	virtual void OnRecv(SessionID sessionID, Packet& packet) override;
 	virtual void OnError(int errorCode, WCHAR* text) override;
 };
 

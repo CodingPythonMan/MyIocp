@@ -21,5 +21,10 @@ int main()
 
 	gameServer.Start(IP, Port, WorkerThread, Nagle, MaxUserCount);
 
+	while (1)
+	{
+
+	}
+
 	return 0;
 }
