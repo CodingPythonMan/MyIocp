@@ -56,5 +56,8 @@
     <ClInclude Include="RingBuffer.h">
       <Filter>Network</Filter>
     </ClInclude>
+    <ClInclude Include="Protocol.h">
+      <Filter>Network</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

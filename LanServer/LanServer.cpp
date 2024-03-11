@@ -7,10 +7,13 @@ LanServer::LanServer()
     _listenSock = INVALID_SOCKET;
 	// Critical Section 초기화
 	InitializeCriticalSection(&_mapCs);
+	_UniqueID = 0;
+
+	// 모니터링 변수
     _AcceptTPS = 0;
 	_RecvMessageTPS = 0;
 	_SendMessageTPS = 0;
-	_UniqueID = 0;
+	_TotalAccept = 0;
 }
 
 LanServer::~LanServer()
@@ -94,7 +97,7 @@ int LanServer::GetSessionCount()
 
 void LanServer::RecvPost(SessionID sessionID)
 {
-	Session* session = _SessionMap[sessionID];
+	Session* session = FindSession(sessionID);
 
 	int retval;
 	DWORD flags = 0;
@@ -124,20 +127,20 @@ void LanServer::RecvPost(SessionID sessionID)
 		retval = WSAGetLastError();
 		if (retval != ERROR_IO_PENDING)
 		{
-			printf("[WSARecv Error] Error Code : %d\n", retval);
+			return;
 		}
 	}
 }
 
 void LanServer::SendPost(SessionID sessionID)
 {
-	Session* session = _SessionMap[sessionID];
+	Session* session = FindSession(sessionID);
 
 	// Send 전 버퍼링
-	if (session->WSASend == true)
+	if (InterlockedExchange(&session->WSASend, 1) == 1)
 		return;
 
-	session->WSASend = true;
+	InterlockedIncrement(&session->IOCount);
 
 	int retval;
 	DWORD flags = 0;
@@ -164,14 +167,12 @@ void LanServer::SendPost(SessionID sessionID)
 		retval = WSASend(session->sock, sendWsabuf, 1, NULL, flags, &session->sendOverlapped, nullptr);
 	}
 
-	InterlockedIncrement(&session->IOCount);
-
 	if (retval == SOCKET_ERROR)
 	{
 		retval = WSAGetLastError();
 		if (retval != ERROR_IO_PENDING)
 		{
-			printf("[WSASend Error] Error Code : %d\n", retval);
+			return;
 		}
 	}
 }
@@ -206,6 +207,15 @@ int LanServer::GetSendMessageTPS()
     return _SendMessageTPS;
 }
 
+Session* LanServer::FindSession(SessionID sessionID)
+{
+	EnterCriticalSection(&_mapCs);
+	Session* session = _SessionMap[sessionID];
+	LeaveCriticalSection(&_mapCs);
+
+	return session;
+}
+
 unsigned int WINAPI LanServer::AcceptThread(LPVOID lpParam)
 {
     LanServer* server = (LanServer*)lpParam;
@@ -231,8 +241,6 @@ unsigned int WINAPI LanServer::AcceptThread(LPVOID lpParam)
             continue;
 		}
 
-		server->_AcceptTPS++;
-
 		InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
 		//_LOG(LOG_LEVEL_DEBUG, L"[TCP Server] Client Access : IP Address=%s, Port=%d\n",
 		//	IP, ntohs(clientAddr.sin_port));
@@ -247,27 +255,37 @@ unsigned int WINAPI LanServer::AcceptThread(LPVOID lpParam)
 		// 소켓과 입출력 완료 포트 연결
 		CreateIoCompletionPort((HANDLE)session->sock, server->_hcp, (ULONG_PTR)session, 0);
 
+		// IOCount 증가
+		InterlockedIncrement(&session->IOCount);
+
 		// 비동기 입출력 시작
 		WSABUF wsabuf;
 		wsabuf.buf = session->recvQ.GetRearBufferPtr();
 		wsabuf.len = session->recvQ.GetFreeSize();
 		flags = 0;
 
+		// 현재 실험 중.
 		retval = WSARecv(clientSock, &wsabuf, 1, NULL, &flags, &session->recvOverlapped, nullptr);
-
-		// IOCount 증가
-		InterlockedIncrement(&session->IOCount);
 
 		if (retval == SOCKET_ERROR)
 		{
 			if (WSAGetLastError() != ERROR_IO_PENDING)
 			{
+				// 이 경우가 아닌 경우가 무슨 경우가 있을까...?
+				_LOG(LOG_LEVEL_ERROR, L"[AcceptThread] Recv Error!\n");
 				return -1;
 			}
-			continue;
+			// IOPending 시 수신 버퍼에 아무것도 없다는 것.
+			// 아무것도 없을 수 있다. 정상적으로 처리 되어야 한다.
 		}
 
+		// 여기로 왔다는 건 동기 처리가 되었으나 그래도 완료통지는 보내진다.
+
 		server->OnAccept(session->sessionID);
+
+		// 모니터링 용 증가
+		server->_AcceptTPS++;
+		server->_TotalAccept++;
 	}
 
     return 0;
@@ -312,7 +330,7 @@ unsigned int WINAPI LanServer::WorkerThread(LPVOID lpParam)
 		// session 을 쓸 때 잠그고 생각한다.
 		EnterCriticalSection(&session->cs);
 
-		// 2. Transferred == 0 확인
+		// 2. Transferred == 0 확인 ( Send 나 Recv 의 오류 ) 
 		if (Transferred == 0)
 		{
 			// IO Count 감소
@@ -323,6 +341,9 @@ unsigned int WINAPI LanServer::WorkerThread(LPVOID lpParam)
 		{
 			// 바이트만큼 Rear 변경
 			session->recvQ.MoveRear(Transferred);
+
+			// 이건 차차 해결하자.
+			//if(session->recvQ.Peek())
 
 			// 메시지 저장
 			Packet packet(Transferred);
@@ -339,12 +360,13 @@ unsigned int WINAPI LanServer::WorkerThread(LPVOID lpParam)
 		else if (overlapped == &session->sendOverlapped)
 		{
 			session->sendQ.MoveFront(Transferred);
-			session->WSASend = false;
-
-			if (session->sendQ.GetUseSize() > 0)
-				server->SendPost(session->sessionID);
 
 			InterlockedDecrement(&session->IOCount);
+			session->WSASend = 0;
+
+			// Dispatch Message
+			if (session->sendQ.GetUseSize() > 0)
+				server->SendPost(session->sessionID);
 		}
 
 		// 현재 재전송까지는 아직 넣지 않음.
@@ -354,8 +376,8 @@ unsigned int WINAPI LanServer::WorkerThread(LPVOID lpParam)
 		{
 			closesocket(session->sock);
 			InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
-			wprintf(L"[TCP Server] Client Terminate : IP Address=%s, Port=%d\n",
-				IP, ntohs(clientAddr.sin_port));
+			//wprintf(L"[TCP Server] Client Terminate : IP Address=%s, Port=%d\n",
+			//	IP, ntohs(clientAddr.sin_port));
 
 			EnterCriticalSection(&server->_mapCs);
 			server->_SessionMap.erase(session->sessionID);
@@ -376,6 +398,7 @@ unsigned int WINAPI LanServer::CalTPSThread(LPVOID lpParam)
 
     while (1)
     {
+        _LOG(LOG_LEVEL_DEBUG, L"TotalAccept : %d", server->_TotalAccept);
         _LOG(LOG_LEVEL_DEBUG, L"AcceptTPS : %d", server->_AcceptTPS);
         _LOG(LOG_LEVEL_DEBUG, L"RecvMessageTPS : %d", server->_RecvMessageTPS);
         _LOG(LOG_LEVEL_DEBUG, L"SendMessageTPS : %d", server->_SendMessageTPS);

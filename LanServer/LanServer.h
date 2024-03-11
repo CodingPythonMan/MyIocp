@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include "Packet.h"
 #include "Log.h"
+#include "Protocol.h"
 
 class LanServer
 {
@@ -38,9 +39,12 @@ public:
 	virtual void	OnRecv(SessionID sessionID, Packet& packet) = 0;
 	virtual void	OnError(int errorCode, WCHAR* text) = 0;
 
-	int		GetAcceptTPS();
-	int		GetRecvMessageTPS();
-	int		GetSendMessageTPS();
+	int			GetAcceptTPS();
+	int			GetRecvMessageTPS();
+	int			GetSendMessageTPS();
+
+	// Session 관리하므로 세션 검색 래핑
+	Session*	FindSession(SessionID sessionID);
 
 protected:
 	static unsigned int WINAPI	AcceptThread(LPVOID lpParam);
@@ -65,4 +69,6 @@ protected:
 	int										_AcceptTPS;
 	int										_RecvMessageTPS;
 	int										_SendMessageTPS;
+
+	int										_TotalAccept;
 };

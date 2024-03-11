@@ -17,7 +17,7 @@ void GameServer::OnRelease()
 void GameServer::OnRecv(SessionID sessionID, Packet& packet)
 {
 	// 컨텐츠 코드
-	Session* session = _SessionMap[sessionID];
+	Session* session = FindSession(sessionID);
 	
 	// 클라이언트 정보 얻기
 	SOCKADDR_IN clientAddr;
