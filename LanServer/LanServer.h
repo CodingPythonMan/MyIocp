@@ -5,6 +5,9 @@
 #include "Packet.h"
 #include "Log.h"
 #include "Protocol.h"
+#include <stack>
+
+#define MAX_UNIQUE_ID 275,000,000,000,000
 
 class LanServer
 {
@@ -44,7 +47,8 @@ public:
 	int			GetSendMessageTPS();
 
 	// Session 관리하므로 세션 검색 래핑
-	Session*	FindSession(SessionID sessionID);
+	Session*		FindSession(SessionID sessionID);
+	unsigned short	ConvertIndex(SessionID sessionID);
 
 protected:
 	static unsigned int WINAPI	AcceptThread(LPVOID lpParam);
@@ -61,8 +65,11 @@ protected:
 	HANDLE*									_WorkerThreads;
 	
 	// Resource
-	CRITICAL_SECTION						_mapCs;
-	std::unordered_map<__int64, Session*>	_SessionMap;
+	Session**								_SessionArray;
+	CRITICAL_SECTION						_SessionIndexLock;
+	std::stack<unsigned short>				_SessionIndex;
+
+	unsigned long							_SessionCount;
 	unsigned __int64						_UniqueID;
 
 	// 모니터링용

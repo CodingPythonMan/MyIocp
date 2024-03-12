@@ -33,6 +33,7 @@ void GameServer::OnRecv(SessionID sessionID, Packet& packet)
 
 	// 다시 재전송
 	// SendPacket
+	InterlockedIncrement((long*)&_RecvMessageTPS);
 	SendPacket(session->sessionID, packet);
 }
 

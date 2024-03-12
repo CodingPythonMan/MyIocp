@@ -16,6 +16,17 @@ struct Session
 	unsigned long WSASend;
 	CRITICAL_SECTION cs;
 
+	Session()
+	{
+		sessionID = 0;
+		IOCount = 0;
+		memset(&recvOverlapped, 0, sizeof(recvOverlapped));
+		memset(&sendOverlapped, 0, sizeof(sendOverlapped));
+		sock = INVALID_SOCKET;
+		WSASend = 0;
+		InitializeCriticalSection(&cs);
+	}
+
 	Session(__int64 id, SOCKET clientSock)
 	{
 		sessionID = id;
