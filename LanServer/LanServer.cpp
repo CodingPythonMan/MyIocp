@@ -155,28 +155,26 @@ void LanServer::SendPost(SessionID sessionID)
 
 	int retval;
 	DWORD flags = 0;
-	WSABUF sendWsabuf[2];
+	WSABUF sendWsabuf[100];
 
 	int UseSize = session->sendQ.GetUseSize();
-	int DirectSize = session->sendQ.DirectDequeueSize();
+	int PacketCount = UseSize / sizeof(Packet*);
+	if (PacketCount > 30)
+		PacketCount = 30;
 
-	// SendQ 에서 해당 부분 설정
-	sendWsabuf[0].buf = session->sendQ.GetFrontBufferPtr();
-
-	if (UseSize > DirectSize)
+	Packet* packet;
+	int Front = session->sendQ.Front;
+	for (int i = 0; i < PacketCount; i++)
 	{
-		sendWsabuf[0].len = DirectSize;
-		sendWsabuf[1].buf = session->sendQ.GetStartBufferPtr();
-		sendWsabuf[1].len = UseSize - sendWsabuf[0].len;
-
-		retval = WSASend(session->sock, sendWsabuf, 2, NULL, flags, &session->sendOverlapped, nullptr);
+		session->sendQ.Dequeue((char*)&packet, sizeof(Packet*));
+		sendWsabuf[i].buf = packet->GetBufferPtr();
+		sendWsabuf[i].len = packet->GetDataSize();
 	}
-	else
-	{
-		sendWsabuf[0].len = UseSize;
 
-		retval = WSASend(session->sock, sendWsabuf, 1, NULL, flags, &session->sendOverlapped, nullptr);
-	}
+	session->sendQ.Front = Front;
+	session->SendPacket = PacketCount;
+
+	retval = WSASend(session->sock, sendWsabuf, PacketCount, NULL, flags, &session->sendOverlapped, nullptr);
 
 	if (retval == SOCKET_ERROR)
 	{
@@ -212,10 +210,10 @@ bool LanServer::Disconnect(SessionID sessionID)
     return true;
 }
 
-bool LanServer::SendPacket(SessionID sessionID, Packet& packet)
+bool LanServer::SendPacket(SessionID sessionID, Packet* packet)
 {
 	Session* session = FindSession(sessionID);
-	session->sendQ.Enqueue(packet.GetBufferPtr(), packet.GetDataSize());
+	session->sendQ.Enqueue((char*)&packet, sizeof(Packet*));
 
 	InterlockedIncrement((long*)&_SendMessageTPS);
 
@@ -348,9 +346,6 @@ unsigned int WINAPI LanServer::WorkerThread(LPVOID lpParam)
 			break;
 		}
 
-		// session 을 쓸 때 잠그고 생각한다.
-		EnterCriticalSection(&session->cs);
-
 		// 2. Transferred == 0 확인 ( Send 나 Recv 의 오류 ) 
 		if (Transferred == 0)
 		{
@@ -388,18 +383,21 @@ unsigned int WINAPI LanServer::WorkerThread(LPVOID lpParam)
 		// 4. Send IO
 		else if (overlapped == &session->sendOverlapped)
 		{
-			session->sendQ.MoveFront(Transferred);
+			Packet* packet;
+			for (int i = 0; i < session->SendPacket; i++)
+			{
+				session->sendQ.Dequeue((char*)&packet, sizeof(Packet*));
+				delete packet;
+			}
 
 			session->WSASend = 0;
+			session->SendPacket = 0;
 			InterlockedDecrement(&session->IOCount);
 
 			// Dispatch Message
 			if (session->sendQ.GetUseSize() > 0)
 				server->SendPost(session->sessionID);
 		}
-
-		// 현재 재전송까지는 아직 넣지 않음.
-		LeaveCriticalSection(&session->cs);
 
 		if (session->IOCount == 0)
 		{

@@ -18,23 +18,21 @@ void GameServer::OnRecv(SessionID sessionID, Packet& packet)
 {
 	// 컨텐츠 코드
 	Session* session = FindSession(sessionID);
-	
-	// 클라이언트 정보 얻기
-	SOCKADDR_IN clientAddr;
-	WCHAR IP[16];
 
-	int addrLen = sizeof(clientAddr);
-	getpeername(session->sock, (SOCKADDR*)&clientAddr, &addrLen);
+	unsigned short len;
+	unsigned __int64 detail;
 
-	InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
-	//wprintf(L"[TCP/%s:%d] ", IP, ntohs(clientAddr.sin_port));
+	packet >> len;
+	packet >> detail;
 
-	//printf("%s\n", packet.GetBufferPtr());
+	InterlockedIncrement((long*)&_RecvMessageTPS);
 
 	// 다시 재전송
 	// SendPacket
-	InterlockedIncrement((long*)&_RecvMessageTPS);
-	SendPacket(session->sessionID, packet);
+	Packet* sendPacket = new Packet(len + sizeof(detail));
+	*sendPacket << len;
+	*sendPacket << detail;
+	SendPacket(session->sessionID, sendPacket);
 }
 
 void GameServer::OnError(int errorCode, WCHAR* text)
