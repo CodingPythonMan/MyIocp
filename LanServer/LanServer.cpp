@@ -155,23 +155,30 @@ void LanServer::SendPost(SessionID sessionID)
 
 	int retval;
 	DWORD flags = 0;
-	WSABUF sendWsabuf[100];
+	WSABUF sendWsabuf[125];
 
+	int DequeueSize = session->sendQ.DirectDequeueSize();
 	int UseSize = session->sendQ.GetUseSize();
-	int PacketCount = UseSize / sizeof(Packet*);
-	if (PacketCount > 30)
-		PacketCount = 30;
+	int PacketCount = DequeueSize / sizeof(Packet*);
+
+	char* ptr = session->sendQ.GetFrontBufferPtr();
 
 	Packet* packet;
-	int Front = session->sendQ.Front;
 	for (int i = 0; i < PacketCount; i++)
 	{
-		session->sendQ.Dequeue((char*)&packet, sizeof(Packet*));
+		packet = *(((Packet**)ptr) + i);
 		sendWsabuf[i].buf = packet->GetBufferPtr();
 		sendWsabuf[i].len = packet->GetDataSize();
 	}
 
-	session->sendQ.Front = Front;
+	if (DequeueSize < sizeof(Packet*) && sizeof(Packet*) <= UseSize)
+	{
+		session->sendQ.Peek((char*)&packet, sizeof(Packet*));
+		sendWsabuf[PacketCount].buf = packet->GetBufferPtr();
+		sendWsabuf[PacketCount].len = packet->GetDataSize();
+		PacketCount += 1;
+	}
+
 	session->SendPacket = PacketCount;
 
 	retval = WSASend(session->sock, sendWsabuf, PacketCount, NULL, flags, &session->sendOverlapped, nullptr);
@@ -224,7 +231,7 @@ bool LanServer::SendPacket(SessionID sessionID, Packet* packet)
 
 int LanServer::GetAcceptTPS()
 {
-    return _AcceptTPS;
+    return _AcceptTPS;        
 }
 
 int LanServer::GetRecvMessageTPS()
