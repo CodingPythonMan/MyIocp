@@ -14,7 +14,7 @@ struct Session
 	RingBuffer sendQ;
 	RingBuffer recvQ;
 	unsigned long WSASend;
-	int SendPacket;
+	CRITICAL_SECTION cs;
 
 	Session()
 	{
@@ -24,7 +24,7 @@ struct Session
 		memset(&sendOverlapped, 0, sizeof(sendOverlapped));
 		sock = INVALID_SOCKET;
 		WSASend = 0;
-		SendPacket = 0;
+		InitializeCriticalSection(&cs);
 	}
 
 	Session(__int64 id, SOCKET clientSock)
@@ -35,6 +35,6 @@ struct Session
 		memset(&sendOverlapped, 0, sizeof(sendOverlapped));
 		sock = clientSock;
 		WSASend = 0;
-		SendPacket = 0;
+		InitializeCriticalSection(&cs);
 	}
 };

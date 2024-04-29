@@ -28,7 +28,7 @@ public:
 	void	SendPost(SessionID sessionID);
 
 	bool	Disconnect(SessionID sessionID);
-	bool	SendPacket(SessionID sessionID, Packet* packet);
+	bool	SendPacket(SessionID sessionID, Packet& packet);
 
 	virtual bool	OnConnectionRequest(WCHAR IP[], int Port) = 0;
 	// return false; 시 클라이언트 거부
