@@ -15,10 +15,12 @@
     <ClCompile Include="LanClient.cpp">
       <Filter>Network</Filter>
     </ClCompile>
+    <ClCompile Include="Network.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LanClient.h">
       <Filter>Network</Filter>
     </ClInclude>
+    <ClInclude Include="Network.h" />
   </ItemGroup>
 </Project>

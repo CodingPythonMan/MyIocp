@@ -21,9 +21,11 @@
   <ItemGroup>
     <ClCompile Include="LanClient.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Network.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LanClient.h" />
+    <ClInclude Include="Network.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
