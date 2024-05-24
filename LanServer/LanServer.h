@@ -68,7 +68,7 @@ protected:
 	Session**								_SessionArray;
 	CRITICAL_SECTION						_SessionIndexLock;
 	std::stack<unsigned short>				_SessionIndex;
-
+	 
 	unsigned long							_SessionCount;
 	unsigned __int64						_UniqueID;
 
