@@ -1,7 +1,7 @@
 #pragma once
-#include "LanServer.h"
+#include "LanClient.h"
 
-class GameServer : public LanServer
+class GameClient : public LanClient
 {
 	using SessionID = unsigned __int64;
 public:
