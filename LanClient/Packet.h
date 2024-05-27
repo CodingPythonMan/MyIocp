@@ -87,6 +87,7 @@ public:
 	Packet& operator << (float value);
 
 	Packet& operator << (__int64 value);
+	Packet& operator << (unsigned __int64 value);
 	Packet& operator << (double value);
 
 	//////////////////////////////////////////////////////////////////////////
@@ -103,6 +104,7 @@ public:
 	Packet& operator >> (float& value);
 
 	Packet& operator >> (__int64& value);
+	Packet& operator >> (unsigned __int64& value);
 	Packet& operator >> (double& value);
 
 	//////////////////////////////////////////////////////////////////////////

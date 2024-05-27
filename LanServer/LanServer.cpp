@@ -289,9 +289,6 @@ unsigned int WINAPI LanServer::AcceptThread(LPVOID lpParam)
 		sessionID = (sessionID << 48) + server->_UniqueID;
 		server->_UniqueID++;
 
-		if (server->_UniqueID >= MAX_UNIQUE_ID)
-			server->_UniqueID = 0;
-
 		session->sock = clientSock;
 		session->sessionID = sessionID;
 		session->sendQ.ClearBuffer();

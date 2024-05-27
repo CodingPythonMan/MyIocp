@@ -131,6 +131,14 @@ Packet& Packet::operator<<(__int64 value)
 	return *this;
 }
 
+Packet& Packet::operator<<(unsigned long long value)
+{
+	memcpy(&Buffer[WritePos], &value, sizeof(unsigned long long));
+	WritePos += sizeof(unsigned long long);
+
+	return *this;
+}
+
 Packet& Packet::operator<<(double value)
 {
 	memcpy(&Buffer[WritePos], &value, sizeof(double));

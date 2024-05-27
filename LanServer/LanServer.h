@@ -7,8 +7,6 @@
 #include "Protocol.h"
 #include <stack>
 
-#define MAX_UNIQUE_ID 275,000,000,000,000
-
 class LanServer
 {
 	using SessionID = unsigned __int64;

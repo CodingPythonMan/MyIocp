@@ -19,22 +19,40 @@ void GameServer::OnRecv(SessionID sessionID, Packet& packet)
 	// 컨텐츠 코드
 	Session* session = FindSession(sessionID);
 	
-	// 클라이언트 정보 얻기
-	SOCKADDR_IN clientAddr;
-	WCHAR IP[16];
+	PACKET_HEADER header;
+	packet.GetData((char*)&header, sizeof(PACKET_HEADER));
 
-	int addrLen = sizeof(clientAddr);
-	getpeername(session->sock, (SOCKADDR*)&clientAddr, &addrLen);
+	// Code 가 정확하지 않을 때, return
+	if (header.byCode != NETWORK_CODE)
+	{
+		return;
+	}
 
-	InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
-	//wprintf(L"[TCP/%s:%d] ", IP, ntohs(clientAddr.sin_port));
+	switch (header.byType)
+	{
+	case QRY_LOGIN:
+	{
+		packet.Clear();
+		header.byType = REP_LOGIN;
+		packet.PutData((char*)&header, HEADER_SIZE);
+		packet << sessionID;
+		SendPacket(sessionID, packet);
+		break;
+	}
+	case QRY_MOVE:
+	{
+		packet.Clear();
+		header.byType = REP_MOVE;
+		packet.PutData((char*)&header, HEADER_SIZE);
+		packet << sessionID;
+		
+		SendPacket(sessionID, packet);
+		break;
+	}
+	}
 
-	//printf("%s\n", packet.GetBufferPtr());
-
-	// 다시 재전송
-	// SendPacket
 	InterlockedIncrement((long*)&_RecvMessageTPS);
-	SendPacket(session->sessionID, packet);
+	//SendPacket(session->sessionID, packet);
 }
 
 void GameServer::OnError(int errorCode, WCHAR* text)
