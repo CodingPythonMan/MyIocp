@@ -25,6 +25,7 @@
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Packet.cpp" />
     <ClCompile Include="Parser.cpp" />
+    <ClCompile Include="Player.cpp" />
     <ClCompile Include="RingBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -33,6 +34,7 @@
     <ClInclude Include="Log.h" />
     <ClInclude Include="Packet.h" />
     <ClInclude Include="Parser.h" />
+    <ClInclude Include="Player.h" />
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="RingBuffer.h" />
     <ClInclude Include="Session.h" />

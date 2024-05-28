@@ -53,6 +53,19 @@ bool LanServer::Start(WCHAR IP[], int Port, int WorkerThreadCount, bool Nagle, i
         return false;
     }
 
+	// 4Way Handshake 불가
+	linger Linger;
+	Linger.l_onoff = 1;
+	Linger.l_linger = 0;
+	setsockopt(_listenSock, SOL_SOCKET, SO_LINGER, (char*)&Linger, sizeof(Linger));
+
+	// 기본 Nagle 설정
+	if (Nagle == false)
+	{
+		int nodelay = 1;
+		setsockopt(_listenSock, SOL_SOCKET, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
+	}
+
     // bind
     SOCKADDR_IN listenAddr;
     memset(&listenAddr, 0, sizeof(listenAddr));

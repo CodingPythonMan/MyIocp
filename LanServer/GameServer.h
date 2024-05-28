@@ -11,4 +11,10 @@ public:
 	virtual void OnRelease() override;
 	virtual void OnRecv(SessionID sessionID, Packet& packet) override;
 	virtual void OnError(int errorCode, WCHAR* text) override;
+
+	// BroadCast
+	bool SendBroadcast(Packet& packet);
+
+private:
+
 };

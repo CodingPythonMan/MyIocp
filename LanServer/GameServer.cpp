@@ -41,11 +41,13 @@ void GameServer::OnRecv(SessionID sessionID, Packet& packet)
 	}
 	case QRY_MOVE:
 	{
+
+
 		packet.Clear();
 		header.byType = REP_MOVE;
 		packet.PutData((char*)&header, HEADER_SIZE);
 		packet << sessionID;
-		
+		//packet << 
 		SendPacket(sessionID, packet);
 		break;
 	}
@@ -57,4 +59,10 @@ void GameServer::OnRecv(SessionID sessionID, Packet& packet)
 
 void GameServer::OnError(int errorCode, WCHAR* text)
 {
+}
+
+bool GameServer::SendBroadcast(Packet& packet)
+{
+
+	return false;
 }
