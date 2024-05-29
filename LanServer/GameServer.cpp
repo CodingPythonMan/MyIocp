@@ -1,5 +1,15 @@
 #include "GameServer.h"
 
+GameServer::GameServer()
+{
+	InitializeCriticalSection(&_playerMapLock);
+}
+
+GameServer::~GameServer()
+{
+	DeleteCriticalSection(&_playerMapLock);
+}
+
 bool GameServer::OnConnectionRequest(WCHAR IP[], int Port)
 {
 	return false;
@@ -7,11 +17,20 @@ bool GameServer::OnConnectionRequest(WCHAR IP[], int Port)
 
 void GameServer::OnAccept(SessionID sessionID)
 {
+	Player* player = new Player();
 
+	EnterCriticalSection(&_playerMapLock);
+	_playerMap.insert({ sessionID, player });
+	LeaveCriticalSection(&_playerMapLock);
 }
 
-void GameServer::OnRelease()
+void GameServer::OnRelease(SessionID sessionID)
 {
+	EnterCriticalSection(&_playerMapLock);
+	Player* player = FindPlayer(sessionID);
+	delete player;
+	_playerMap.erase(sessionID);
+	LeaveCriticalSection(&_playerMapLock);
 }
 
 void GameServer::OnRecv(SessionID sessionID, Packet& packet)
@@ -34,20 +53,31 @@ void GameServer::OnRecv(SessionID sessionID, Packet& packet)
 	{
 		packet.Clear();
 		header.byType = REP_LOGIN;
+		header.bySize = 8;
 		packet.PutData((char*)&header, HEADER_SIZE);
 		packet << sessionID;
 		SendPacket(sessionID, packet);
 		break;
 	}
-	case QRY_MOVE:
+	case QRY_MOVE_START:
 	{
-
-
+		Player* player = FindPlayer(sessionID);
 		packet.Clear();
-		header.byType = REP_MOVE;
+		header.byType = REP_MOVE_START;
 		packet.PutData((char*)&header, HEADER_SIZE);
-		packet << sessionID;
-		//packet << 
+		packet << player->X;
+		packet << player->Y;
+		SendPacket(sessionID, packet);
+		break;
+	}
+	case QRY_MOVE_STOP:
+	{
+		Player* player = FindPlayer(sessionID);
+		packet.Clear();
+		header.byType = REP_MOVE_STOP;
+		packet.PutData((char*)&header, HEADER_SIZE);
+		packet << player->X;
+		packet << player->Y;
 		SendPacket(sessionID, packet);
 		break;
 	}
@@ -65,4 +95,9 @@ bool GameServer::SendBroadcast(Packet& packet)
 {
 
 	return false;
+}
+
+Player* GameServer::FindPlayer(SessionID sessionID)
+{
+	return _playerMap[sessionID];
 }

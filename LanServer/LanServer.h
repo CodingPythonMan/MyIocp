@@ -35,7 +35,7 @@ public:
 	// 접속 완료 후 호출
 	virtual void	OnAccept(SessionID sessionID) = 0;
 	// 접속 끊음 후 호출
-	virtual void	OnRelease() = 0;
+	virtual void	OnRelease(SessionID sessionID) = 0;
 	// 패킷 수신 완료
 	virtual void	OnRecv(SessionID sessionID, Packet& packet) = 0;
 	virtual void	OnError(int errorCode, WCHAR* text) = 0;

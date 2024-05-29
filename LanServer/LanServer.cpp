@@ -212,6 +212,7 @@ bool LanServer::Disconnect(SessionID sessionID)
 	int addrLen = sizeof(clientAddr);
 	getpeername(session->sock, (SOCKADDR*)&clientAddr, &addrLen);
 	closesocket(session->sock);
+	OnRelease(sessionID);
 	InetNtop(AF_INET, &(clientAddr.sin_addr), IP, 16);
 	//wprintf(L"[TCP Server] Client Terminate : IP Address=%s, Port=%d\n",
 	//	IP, ntohs(clientAddr.sin_port));
@@ -375,17 +376,17 @@ unsigned int WINAPI LanServer::WorkerThread(LPVOID lpParam)
 
 			while (1)
 			{
-				if (session->recvQ.GetUseSize() <= HEADER_SIZE)
+				if (session->recvQ.GetUseSize() < HEADER_SIZE)
 					break;
 
-				unsigned short len;
-				session->recvQ.Peek((char*)&len, sizeof(len));
-				if (session->recvQ.GetUseSize() < HEADER_SIZE + len)
+				PACKET_HEADER header;
+				session->recvQ.Peek((char*)&header, HEADER_SIZE);
+				if (session->recvQ.GetUseSize() < HEADER_SIZE + header.bySize)
 					break;
 
 				// 메시지 저장
-				Packet packet(HEADER_SIZE + len);
-				retval = session->recvQ.Dequeue(packet.GetBufferPtr(), HEADER_SIZE + len);
+				Packet packet;
+				retval = session->recvQ.Dequeue(packet.GetBufferPtr(), HEADER_SIZE + header.bySize);
 				packet.MoveWritePos(retval);
 
 				// 메세지 처리하는 함수

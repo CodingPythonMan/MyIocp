@@ -15,7 +15,12 @@ struct PACKET_HEADER
 // Session ID (8)
 #define REP_LOGIN 2
 
-// Session ID (8)  
-#define QRY_MOVE 3
+// Session ID (8) Direction (1)  
+#define QRY_MOVE_START 3
+// Session ID (8) X (4) Y (4)
+#define REP_MOVE_START 4
+
 // Session ID (8) Direction (1)
-#define REP_MOVE 4
+#define QRY_MOVE_STOP 4
+// Session ID (8) X (4) Y (4)
+#define REP_MOVE_STOP 5

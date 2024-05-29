@@ -10,6 +10,9 @@
     <Filter Include="Util">
       <UniqueIdentifier>{dd38cabd-049a-49a6-8768-fe28cd02f05b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Content">
+      <UniqueIdentifier>{70edb089-4988-488a-abd8-82fea9a18238}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -32,6 +35,9 @@
     </ClCompile>
     <ClCompile Include="GameClient.cpp">
       <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="Player.cpp">
+      <Filter>Content</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -58,6 +64,9 @@
     </ClInclude>
     <ClInclude Include="GameClient.h">
       <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="Player.h">
+      <Filter>Content</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

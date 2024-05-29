@@ -1,4 +1,5 @@
 #include "LanClient.h"
+#include <conio.h>
 
 LanClient::LanClient()
 {
@@ -6,8 +7,6 @@ LanClient::LanClient()
 	_WorkerThreads = nullptr;
 
 	_session = new Session();
-
-	_UniqueID = 0;
 }
 
 LanClient::~LanClient()
@@ -56,7 +55,37 @@ bool LanClient::Start(WCHAR IP[], int Port, int WorkerThreadCount)
 	for (int i = 0; i < WorkerThreadCount; i++)
 	{
 		_WorkerThreads[i] = (HANDLE)_beginthreadex(nullptr, 0, WorkerThread, this, 0, nullptr);
-	}  
+	}
+
+	// 소켓과 입출력 완료 포트 연결
+	CreateIoCompletionPort((HANDLE)_session->sock, _hcp, (ULONG_PTR)_session, 0);
+
+	RecvPost();
+
+	// 여기에서 Server 쪽에 WSASend 할 패킷을 보내도 좋다.
+	Packet packet;
+	PACKET_HEADER header;
+	header.byCode = NETWORK_CODE;
+	header.bySize = 0;
+	header.byType = QRY_LOGIN;
+	packet.PutData((char*)&header, HEADER_SIZE);
+	SendPacket(packet);
+
+	while (1)
+	{
+		/*
+		if (_kbhit())
+		{
+			WCHAR ControlKey = _getwch();
+
+			if ()
+			{
+				
+			}
+		}*/
+
+		Sleep(100);
+	}
 
 	return true;
 }
@@ -210,17 +239,17 @@ unsigned int WINAPI LanClient::WorkerThread(LPVOID lpParam)
 
 			while (1)
 			{
-				if (session->recvQ.GetUseSize() <= HEADER_SIZE)
+				if (session->recvQ.GetUseSize() < HEADER_SIZE)
 					break;
 
-				unsigned short len;
-				session->recvQ.Peek((char*)&len, sizeof(len));
-				if (session->recvQ.GetUseSize() < HEADER_SIZE + len)
+				PACKET_HEADER header;
+				session->recvQ.Peek((char*)&header, HEADER_SIZE);
+				if (session->recvQ.GetUseSize() < HEADER_SIZE + header.bySize)
 					break;
 
 				// 메시지 저장
-				Packet packet(HEADER_SIZE + len);
-				retval = session->recvQ.Dequeue(packet.GetBufferPtr(), HEADER_SIZE + len);
+				Packet packet;
+				retval = session->recvQ.Dequeue(packet.GetBufferPtr(), HEADER_SIZE + header.bySize);
 				packet.MoveWritePos(retval);
 
 				// 메세지 처리하는 함수

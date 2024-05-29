@@ -26,10 +26,6 @@ public:
 	bool	Disconnect();
 	bool	SendPacket(Packet& packet);
 
-	virtual bool	OnConnectionRequest(WCHAR IP[], int Port) = 0;
-	// return false; 시 클라이언트 거부
-	// return true; 시 접속 허용
-
 	// 패킷 수신 완료
 	virtual void	OnRecv(Packet& packet) = 0;
 	virtual void	OnError(int errorCode, WCHAR* text) = 0;
@@ -43,6 +39,4 @@ protected:
 	// IOCP
 	HANDLE									_hcp;
 	HANDLE*									_WorkerThreads;
-
-	unsigned __int64						_UniqueID;
 };
