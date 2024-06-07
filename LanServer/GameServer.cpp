@@ -93,6 +93,12 @@ void GameServer::OnError(int errorCode, WCHAR* text)
 
 bool GameServer::SendBroadcast(Packet& packet)
 {
+	EnterCriticalSection(&_playerMapLock);
+	for (auto iter = _playerMap.begin(); iter != _playerMap.end(); ++iter)
+	{
+		SendPacket(iter->first, packet);
+	}
+	LeaveCriticalSection(&_playerMapLock);
 
 	return false;
 }
